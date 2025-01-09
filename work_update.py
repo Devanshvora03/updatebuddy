@@ -2,7 +2,7 @@ import streamlit as st
 from groq import Groq
 
 # Initialize Groq client
-client = Groq()
+client = Groq(api_key=GROQ_API_KEY)
 
 # Streamlit app title
 st.title("Work Update Generator")
@@ -16,9 +16,9 @@ system_message = {
         "The Name will be always 'Devansh Vora'. "
         "Example 1: "
         "Name: Devansh Vora "
-        "**Work Summary of 06/01:** "
+        "Work Summary of 06/01:"
         "_____________________________________________________ "
-        "**Today's Work:** "
+        "Today's Work: "
         "• Discovered that ViT is not capable of handling text + vision tasks effectively. "
         "• Used PixTral Large and Small models for the same task in the Hugging Face Playground. "
         "• Leveraged RunPod to create a serverless endpoint for PixTral. "
@@ -26,9 +26,9 @@ system_message = {
         "• Calculated the required costing for Mistral via its own API and Sonnet 3 through AWS Bedrock. "
         "Example 2: "
         "Name: Devansh Vora "
-        "**Work Summary of 06/01:** "
+        "Work Summary of 06/01:"
         "_____________________________________________________ "
-        "**Today's Work:** "
+        "Today's Work: "
         "• Finalized the image similarity pipeline, ensuring integration and accurate functionality. "
         "• Merged all code into a single file to streamline the entire process. "
         "• The pipeline removes backgrounds using the RMBG-2.0 model, extracts text using the LLaMA 3.2 Vision model, and calculates both text and image similarity scores for a combined result. "
