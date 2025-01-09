@@ -13,6 +13,9 @@ st.title("Work Update Generator")
 st.markdown("***From Devansh Vora***, Here's a bouquet &mdash;\
             :tulip::cherry_blossom::rose::hibiscus::sunflower::blossom:", unsafe_allow_html=True)
 
+st.markdown("""This bot helps you generate daily work summaries based on the tasks you provide. 
+               Simply enter a short description of your day, and it will format it for you! 📋""")
+
 # User inputs for name, date, and prompt
 user_name = st.text_input("Enter your name:", "Devansh Vora")
 user_date = st.date_input("Enter the date:")
