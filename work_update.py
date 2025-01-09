@@ -22,7 +22,7 @@ system_message = {
         "The Name will be always 'Devansh Vora'. "
         "Example 1: "
         "Name: Devansh Vora "
-        "Work Summary of 06/01:"
+        "Work Summary of 06/01:\n"
         "_____________________________________________________ "
         "Today's Work: "
         "• Discovered that ViT is not capable of handling text + vision tasks effectively. "
