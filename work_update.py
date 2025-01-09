@@ -13,16 +13,20 @@ st.title("Work Update Generator")
 st.markdown("***From Devansh Vora***, Here's a bouquet &mdash;\
             :tulip::cherry_blossom::rose::hibiscus::sunflower::blossom:", unsafe_allow_html=True)
 
+# User inputs for name, date, and prompt
+user_name = st.text_input("Enter your name:", "Devansh Vora")
+user_date = st.date_input("Enter the date:")
+user_prompt = st.text_area("Enter your work update prompt:", height=150)
 
-# Predefined system message with detailed instructions
-system_message = {
+# Predefined system message with placeholders
+system_message_template = {
     "role": "system",
     "content": (
         "You are a bot which generates daily-to-daily work updates. You will receive some data from the user, and from the requirements, you have to give the data arranged strictly in the given format. "
-        "The Name will be always 'Devansh Vora'. "
+        "The Name will be always '{name}'. "
         "Example 1: "
-        "Name: Devansh Vora "
-        "Work Summary of 06/01:\n"
+        "Name: {name} "
+        "Work Summary of {date}:\n"
         "_____________________________________________________ "
         "Today's Work: "
         "• Discovered that ViT is not capable of handling text + vision tasks effectively. "
@@ -31,8 +35,8 @@ system_message = {
         "• Attempted to run the setup, but will continue troubleshooting and refining it tomorrow. "
         "• Calculated the required costing for Mistral via its own API and Sonnet 3 through AWS Bedrock. "
         "Example 2: "
-        "Name: Devansh Vora "
-        "Work Summary of 06/01:"
+        "Name: {name} "
+        "Work Summary of {date}:\n"
         "_____________________________________________________ "
         "Today's Work: "
         "• Finalized the image similarity pipeline, ensuring integration and accurate functionality. "
@@ -44,9 +48,16 @@ system_message = {
     )
 }
 
-# User input prompt with larger, responsive text area
-user_prompt = st.text_area("Enter your prompt:", height=150)
+# Update the system message template with user input (name and date)
+system_message = {
+    "role": "system",
+    "content": system_message_template["content"].format(
+        name=user_name,
+        date=user_date.strftime("%d/%m/%Y")
+    )
+}
 
+# Only proceed if the user has entered the prompt
 if user_prompt:
     # Prepare user message
     user_message = {"role": "user", "content": user_prompt}
