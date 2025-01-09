@@ -9,7 +9,7 @@ if not api_key:
 client = Groq(api_key=api_key)
 
 # Streamlit app title
-st.title("Work Update Generator")
+st.title("UpdateBuddy AI")
 st.markdown("***From Devansh Vora***, Here's a bouquet &mdash;\
             :tulip::cherry_blossom::rose::hibiscus::sunflower::blossom:", unsafe_allow_html=True)
 
