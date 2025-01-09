@@ -1,13 +1,19 @@
-import streamlit as st
 from groq import Groq
+import streamlit as st
+import os
 
 # Initialize Groq client
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+api_key = os.getenv("GROQ_API_KEY")
+if not api_key:
+    st.error("API key is missing. Please set the GROQ_API_KEY environment variable.")
+client = Groq(api_key=api_key)
 
 # Streamlit app title
 st.title("Work Update Generator")
 st.markdown("***From Devansh Vora***, Here's a bouquet &mdash;\
             :tulip::cherry_blossom::rose::hibiscus::sunflower::blossom:", unsafe_allow_html=True)
+
+
 # Predefined system message with detailed instructions
 system_message = {
     "role": "system",
