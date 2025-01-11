@@ -13,6 +13,18 @@ client = Groq(api_key=api_key)
 
 # Few-shot example for better formatting
 few_shot_examples = """
+Format
+### **Name: {name}**
+
+Work Summary of: {date} 
+
+***Today's Work:***
+
+- Task 1 Formatted professional summary
+- Task 2 Formatted professional summary
+- Task 3 Formatted professional summary
+
+Example : 
 ### **Name: Devansh Vora**
 
 Work Summary of: 09/01/2025  
@@ -49,6 +61,9 @@ if st.button("Generate Work Summary"):
         st.warning("Please enter at least one task to generate a summary.")
     else:
         try:
+            # Format the user's name and date
+            formatted_date = date.strftime('%d/%m/%Y')
+            
             # Generate the work summary using Groq
             completion = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
@@ -56,18 +71,24 @@ if st.button("Generate Work Summary"):
                     {
                         "role": "system",
                         "content": """You are a professional bot that generates summaries in a structured format.
-                                      Generate the new point according to the user requirements, 
-                                      DO NOT include any note
-                                      DO NOT include the content from example, just follow the format
+                                      Format tasks or understand the paragraph and divide them into structured points.
+                                      Generate the new points according to the user requirements. 
+                                      DO NOT include any notes.
+                                      DO NOT include the content from example, just follow the format.
+                                      Generate points according to the requirements provided. A fixed number of points is NOT needed.
                                     """
                     },
                     {
                         "role": "user",
                         "content": f"""Generate a professional work summary using the following format:
                                        {few_shot_examples}
-                                        Tasks provided by the user:
-                                        {tasks}
-                                        """
+
+                                       Tasks provided by the user:
+                                       {tasks}
+
+                                       Name: {name}
+                                       Date: {formatted_date}
+                                       """
                     },
                 ],
                 temperature=0.7,
@@ -78,7 +99,6 @@ if st.button("Generate Work Summary"):
             
             # Extract and format the response
             response_content = completion.choices[0].message.content.strip()
-            formatted_date = date.strftime('%d/%m/%Y')
             final_output = f"""{response_content}"""
             
             # Display the formatted output
