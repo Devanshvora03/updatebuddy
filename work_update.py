@@ -51,7 +51,7 @@ name = st.text_input("Enter Your Name:", "Devansh Vora")
 date = st.date_input("Select the Date:", datetime.date.today())
 tasks = st.text_area(
     "Enter Today's Tasks (one task per line):",
-    placeholder="E.g.\n- Prepared for a client meeting\n- Reviewed last week's progress",
+    placeholder="E.g.\n- Mention your work summary here\n- Mention the lines you require as the result\n- Also specify the tone if you want",
     height=150,
 )
 
