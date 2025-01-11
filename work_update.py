@@ -55,7 +55,11 @@ if st.button("Generate Work Summary"):
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a professional bot that generates summaries in a structured format. Do not include any note"
+                        "content": """You are a professional bot that generates summaries in a structured format.
+                                      Generate the new point according to the user requirements, 
+                                      DO NOT include any note
+                                      DO NOT include the content from example, just follow the format
+                                    """
                     },
                     {
                         "role": "user",
