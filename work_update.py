@@ -14,7 +14,7 @@ client = Groq(api_key=api_key)
 # Few-shot example for better formatting
 few_shot_examples = """
 Format
-### **Name: {name}**
+***Name: {name}***
 
 Work Summary of: {date} 
 
@@ -25,7 +25,7 @@ Work Summary of: {date}
 - Task 3 Formatted professional summary
 
 Example : 
-### **Name: Devansh Vora**
+***Name: Devansh Vora***
 
 Work Summary of: 09/01/2025  
 
