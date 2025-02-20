@@ -48,14 +48,9 @@ st.markdown(
 # Input fields
 name = st.text_input("Enter Your Name:", "Devansh Vora")
 date = st.date_input("Select the Date:", datetime.date.today())
-tasks = st.text_area(
-    "Enter Today's Tasks (one task per line):",
-    placeholder="E.g.\n- Mention your work summary here\n- Mention the lines you require as the result\n- Also specify the tone if you want",
-    height=150,
-)
 
 # Length Option Selection
-length_option = st.radio("Select Summary Length:", ["Short", "Normal", "Long"], index=1)
+length_option = st.selectbox("Select Summary Length:", ["Short", "Normal", "Long"], index=1)
 
 # Updated length explanations with more precise instructions
 length_explanations = {
@@ -63,6 +58,12 @@ length_explanations = {
     "Normal": "Include basic context and outcomes (20-25 words per point).",
     "Long": "Add moderate detail while maintaining clarity (35-40 words per point)."
 }
+
+tasks = st.text_area(
+    "Enter Today's Tasks (one task per line):",
+    placeholder="E.g.\n- Mention your work summary here\n- Mention the lines you require as the result\n- Also specify the tone if you want",
+    height=150,
+)
 
 # Generate work summary when the user clicks the button
 if st.button("Generate Work Summary"):
