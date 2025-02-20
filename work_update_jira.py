@@ -4,7 +4,7 @@ import os
 import datetime
 
 # Initialize the Groq API key
-api_key = os.getenv("GROQ_API_KEY")
+api_key = os.getenv("GROQ_API_KEY_2")
 if not api_key:
     st.error("API key is missing. Please set the GROQ_API_KEY environment variable.")
     st.stop()
@@ -80,9 +80,6 @@ if st.button("Generate Work Summary"):
             - Short: Keep each bullet point between 15-20 words. Focus on core actions only.
             - Normal: Keep each bullet point between 20-25 words. Include basic context and outcomes.
             - Long: Keep each bullet point between 35-40 words. Add moderate detail while staying focused.
-
-            Generate points according to the requirements provided. A fixed number of points is NOT needed.
-            You are responsible to cover all the points in length limits.
             
             DO NOT exceed the word limit for each length option.
             DO NOT include any notes or explanations. Only return the formatted summary.
