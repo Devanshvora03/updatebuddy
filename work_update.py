@@ -72,7 +72,6 @@ if st.button("Generate Work Summary"):
         try:
             formatted_date = date.strftime('%d/%m/%Y')
 
-            # Updated System Prompt with stricter length guidelines
             system_prompt = f"""
             You are a professional bot that generates structured work summaries. 
             Format the tasks professionally, following these strict length guidelines:
