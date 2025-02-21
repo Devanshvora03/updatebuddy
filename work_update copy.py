@@ -4,7 +4,7 @@ import os
 import datetime
 
 # Initialize the Groq API key
-api_key = os.getenv("GROQ_API_KEY_2")
+api_key = os.getenv("GROQ_API_KEY")
 if not api_key:
     st.error("API key is missing. Please set the GROQ_API_KEY environment variable.")
     st.stop()
@@ -48,14 +48,9 @@ st.markdown(
 # Input fields
 name = st.text_input("Enter Your Name:", "Devansh Vora")
 date = st.date_input("Select the Date:", datetime.date.today())
-tasks = st.text_area(
-    "Enter Today's Tasks (one task per line):",
-    placeholder="E.g.\n- Mention your work summary here\n- Mention the lines you require as the result\n- Also specify the tone if you want",
-    height=150,
-)
 
 # Length Option Selection
-length_option = st.radio("Select Summary Length:", ["Short", "Normal", "Long"], index=1)
+length_option = st.selectbox("Select Summary Length:", ["Short", "Normal", "Long"], index=1)
 
 # Updated length explanations with more precise instructions
 length_explanations = {
@@ -63,6 +58,12 @@ length_explanations = {
     "Normal": "Include basic context and outcomes (20-25 words per point).",
     "Long": "Add moderate detail while maintaining clarity (35-40 words per point)."
 }
+
+tasks = st.text_area(
+    "Enter Today's Tasks (one task per line):",
+    placeholder="E.g.\n- Mention your work summary here\n- Mention the lines you require as the result\n- Also specify the tone if you want",
+    height=150,
+)
 
 # Generate work summary when the user clicks the button
 if st.button("Generate Work Summary"):
@@ -72,7 +73,6 @@ if st.button("Generate Work Summary"):
         try:
             formatted_date = date.strftime('%d/%m/%Y')
 
-            # Updated System Prompt with stricter length guidelines
             system_prompt = f"""
             You are a professional bot that generates structured work summaries. 
             Format the tasks professionally, following these strict length guidelines:
@@ -80,6 +80,9 @@ if st.button("Generate Work Summary"):
             - Short: Keep each bullet point between 15-20 words. Focus on core actions only.
             - Normal: Keep each bullet point between 20-25 words. Include basic context and outcomes.
             - Long: Keep each bullet point between 35-40 words. Add moderate detail while staying focused.
+
+            Generate points according to the requirements provided. A fixed number of points is NOT needed.
+            You are responsible to cover all the points in length limits.
             
             DO NOT exceed the word limit for each length option.
             DO NOT include any notes or explanations. Only return the formatted summary.
