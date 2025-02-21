@@ -7,16 +7,13 @@ import datetime
 import json
 import re
 
-# Initialize API keys
 groq_api_key = os.getenv("GROQ_API_KEY")
 if not groq_api_key:
     st.error("API key is missing. Please set the GROQ_API_KEY environment variable.")
     st.stop()
 
-# Initialize Groq client for direct API calls
 direct_client = Groq(api_key=groq_api_key)
 
-# Define format examples
 teams_format_example = """
 Format
 ***Name: {name}***
