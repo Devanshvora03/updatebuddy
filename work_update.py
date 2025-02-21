@@ -116,7 +116,7 @@ def initialize_agents():
     tasks_agent = Agent(
         name="Task Recognizer",
         role="Understand the user's requirements and identify task format",
-        model=PhiGroq(id="qwen-2.5-32b", api_key=groq_api_key),
+        model=PhiGroq(id="deepseek-r1-distill-qwen-32b", api_key=groq_api_key),
         instructions=[
             "You analyze input to determine if it follows the Jira update structure in either format:",
             "1. Explicit Format:",
@@ -139,7 +139,7 @@ def initialize_agents():
     teams_agent = Agent(
         name="Teams Update Summarizer",
         role="Generate professional work summaries from task descriptions",
-        model=PhiGroq(id="qwen-2.5-32b", api_key=groq_api_key),
+        model=PhiGroq(id="deepseek-r1-distill-qwen-32b", api_key=groq_api_key),
         instructions=[
             f"You are a professional bot that generates structured work summaries for regular tasks.",
             f"You receive tasks in plain text and format them according to these length guidelines:",
@@ -158,7 +158,7 @@ def initialize_agents():
     jira_agent = Agent(
         name="Jira Update Summarizer",
         role="Generate professional work summaries in Jira format",
-        model=PhiGroq(id="qwen-2.5-32b", api_key=groq_api_key),
+        model=PhiGroq(id="deepseek-r1-distill-qwen-32b", api_key=groq_api_key),
         instructions=[
             f"You are a professional bot that generates structured work summaries in Jira format.",
             f"You receive input in either structured or natural language format.",
@@ -192,7 +192,7 @@ def initialize_agents():
     formatter_agent = Agent(
         name="Update Formatter and Response Validator",
         role="Format and validate work summaries",
-        model=PhiGroq(id="qwen-2.5-32b", api_key=groq_api_key),
+        model=PhiGroq(id="deepseek-r1-distill-qwen-32b", api_key=groq_api_key),
         instructions=[
             "You validate and format work summaries based on their type (teams or jira).",
             "For teams format, use:",
@@ -337,7 +337,7 @@ if st.button("Generate Work Summary"):
 
                 # Modify the task recognition API call section:
                 detection_completion = direct_client.chat.completions.create(
-                    model="qwen-2.5-32b",
+                    model="deepseek-r1-distill-qwen-32b",
                     messages=[
                         {"role": "system", "content": task_recognition_system_prompt},
                         {"role": "user", "content": task_recognition_prompt.format(input_text=tasks)}
@@ -420,7 +420,7 @@ if st.button("Generate Work Summary"):
                 """
                 
                 summary_completion = direct_client.chat.completions.create(
-                    model="qwen-2.5-32b",
+                    model="deepseek-r1-distill-qwen-32b",
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
@@ -469,7 +469,7 @@ if st.button("Generate Work Summary"):
                 """
                 
                 formatting_completion = direct_client.chat.completions.create(
-                    model="qwen-2.5-32b",
+                    model="deepseek-r1-distill-qwen-32b",
                     messages=[
                         {"role": "system", "content": validation_system_prompt},
                         {"role": "user", "content": validation_user_prompt}
