@@ -230,7 +230,7 @@ st.markdown(
 with st.sidebar:
     st.header("Agent System")
     st.info("UpdateBuddy now uses a multi-agent system to generate better summaries!")
-    show_agent_logs = st.checkbox("Show Agent Logs", value=True)
+    show_agent_logs = st.checkbox("Show Agent Logs", value=False)
     
     if show_agent_logs:
         st.subheader("Agent System:")
