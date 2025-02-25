@@ -120,8 +120,8 @@ def initialize_agents():
         instructions=[
             "You analyze input to determine if it follows the Jira update structure in either format:",
             "1. Explicit Format:",
-            "   - Contains section headers like 'Task Completed:', 'Ongoing task:', etc.",
-            "   - Starts with 'Work update:'",
+            "   - Contains section headers like 'Task Completed', 'Ongoing task', etc.",
+            "   - Starts with 'Work update'",
             "2. Natural Language Format:",
             "   - Contains mentions of completed/finished/done tasks (past tense)",
             "   - Contains current/ongoing work (present tense)",
