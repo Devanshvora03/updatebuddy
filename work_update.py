@@ -1,7 +1,5 @@
 import streamlit as st
 from groq import Groq
-from phi.agent import Agent
-from phi.model.groq import Groq as PhiGroq
 import os
 import datetime
 import json
@@ -12,8 +10,9 @@ if not groq_api_key:
     st.error("API key is missing. Please set the GROQ_API_KEY environment variable.")
     st.stop()
 
-direct_client = Groq(api_key=groq_api_key)
+client = Groq(api_key=groq_api_key)
 
+# Define the format examples
 teams_format_example = """
 Format
 ***Name: {name}***
@@ -70,153 +69,252 @@ Work update: 21/02/2025
    * Database Connection Timeout: Facing intermittent connection issues, possibly due to SQLAlchemy session management.
 """
 
-def contains_jira_pattern(text):
-    """Enhanced function to detect Jira patterns with stricter requirements"""
-    # Explicit format checks
-    explicit_patterns = [
-        r"task completed:",
-        r"ongoing task:",
-        r"task for tomorrow:",
-        r"challenges? if any:",
-        r"work update:"
-    ]
-    
-    # Natural language pattern checks - Made more specific
-    natural_patterns = {
-        'completed': r"(today,? i|i have|have just|just|recently) (completed|finished|delivered|closed|done)",
-        'ongoing': r"(currently|right now|in progress|actively) (working on|developing|implementing|handling)",
-        'future': r"(tomorrow|next|planning to|will|going to) (implement|develop|work on|start|begin)",
-        'challenges': r"(facing|encountered|dealing with|struggling with) (challenges?|issues?|problems?|difficulties)"
-    }
-    
+def has_temporal_structure(text):
+    """
+    Direct pattern matching to detect temporal structure in text.
+    If it has both past and future references, we classify as Jira.
+    """
     text_lower = text.lower()
     
-    # Check for explicit format
-    explicit_matches = sum(1 for pattern in explicit_patterns if re.search(pattern, text_lower))
-    if explicit_matches >= 2:  # If at least 2 explicit patterns are found
-        return True
-        
-    # Check for natural language format - Require more specific matches
-    natural_matches = sum(1 for pattern_type, pattern in natural_patterns.items() 
-                         if re.search(pattern, text_lower))
+    # Past tense indicators
+    past_indicators = [
+        r'\b(completed|finished|done|tested|checked|implemented|fixed|resolved|made|reviewed|created|built|added|updated|delivered)\b',
+        r'\bhave (been|had|done|made|seen|gone|come|taken|worked|written|read|said|told|thought|known)\b',
+        r'\bdid\b'
+    ]
     
-    # Must match at least 3 categories (completed, ongoing/future, challenges)
-    # AND must follow the temporal pattern (past, present, future)
-    if natural_matches >= 3 and any(re.search(natural_patterns['completed'], text_lower)) and \
-       (any(re.search(natural_patterns['ongoing'], text_lower)) or 
-        any(re.search(natural_patterns['future'], text_lower))):
+    # Future tense indicators
+    future_indicators = [
+        r'\bwill\b',
+        r'\bgoing to\b',
+        r'\bplan(ning)? to\b',
+        r'\btomorrow\b',
+        r'\bnext\b',
+        r'\bscheduled\b',
+        r'\bupcoming\b'
+    ]
+    
+    # Issue/ticket references
+    issue_indicators = [
+        r'[A-Z]+-\d+',  # Matches patterns like ABC-123
+        r'\bissue\b',
+        r'\bticket\b',
+        r'\bbug\b',
+        r'\bchallenge\b',
+        r'\bproblem\b'
+    ]
+    
+    # Check for past tense verbs
+    has_past = any(re.search(pattern, text_lower) for pattern in past_indicators)
+    
+    # Check for future references
+    has_future = any(re.search(pattern, text_lower) for pattern in future_indicators)
+    
+    # Check for issue references
+    has_issues = any(re.search(pattern, text_lower) for pattern in issue_indicators)
+    
+    # If it has both past and future elements, it's likely a Jira format
+    # Also classify as Jira if it has issues/tickets mentioned
+    if (has_past and has_future) or has_issues:
         return True
     
     return False
 
-def initialize_agents():
-    """Initialize all agents with their proper instructions"""
+def classify_input_type(text):
+    """
+    Classifies input text as either 'jira' or 'teams' using a direct approach
+    that combines pattern matching and LLM classification.
+    """
+    # First, try direct pattern matching
+    if has_temporal_structure(text):
+        return 'jira'
     
-    # Task Recognizer Agent
-    tasks_agent = Agent(
-        name="Task Recognizer",
-        role="Understand the user's requirements and identify task format",
-        model=PhiGroq(id="deepseek-r1-distill-qwen-32b", api_key=groq_api_key),
-        instructions=[
-            "You analyze input to determine if it follows the Jira update structure in either format:",
-            "1. Explicit Format:",
-            "   - Contains section headers like 'Task Completed', 'Ongoing task', etc.",
-            "   - Starts with 'Work update'",
-            "2. Natural Language Format:",
-            "   - Contains mentions of completed/finished/done tasks (past tense)",
-            "   - Contains current/ongoing work (present tense)",
-            "   - Contains tomorrow's/future plans",
-            "   - Contains challenges/issues/concerns",
-            "If the input matches atleast 3 format pattern from natural language format, then only classify as 'jira'.",
-            "Otherwise, classify as 'teams'.",
-            "Return ONLY a JSON response with format: {'type': 'teams'|'jira', 'content': <original_content>}",
-            "Do not include any explanations, just the JSON output."
+    # If no clear temporal structure, use a more thorough analysis
+    system_prompt = """
+    You are a classifier that categorizes task updates into one of two types:
+    
+    1. 'jira' - Updates that include AT LEAST ONE of these elements:
+       - BOTH completed tasks (past tense) AND tasks planned for the future
+       - References to specific issues or tickets (like ABC-123)
+       - Clear indication of ongoing work AND future tasks
+       
+    2. 'teams' - Simple task lists without temporal structure (past/present/future)
+    
+    Respond with ONLY a single word: either 'jira' or 'teams'
+    """
+    
+    user_prompt = f"""
+    Classify this input as either 'jira' or 'teams':
+
+    {text}
+    
+    If it contains BOTH past tense verbs (completed, tested, fixed, etc.) AND future references (will, plan to, tomorrow, etc.) OR mentions issues/tickets, it's 'jira'.
+    Otherwise, it's 'teams'.
+    
+    Respond with ONLY a single word: either 'jira' or 'teams'
+    """
+    
+    completion = client.chat.completions.create(
+        model="deepseek-r1-distill-qwen-32b",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ],
-        markdown=True,
+        temperature=0.1,
+        max_tokens=10
     )
     
-    # Teams Agent
-    teams_agent = Agent(
-        name="Teams Update Summarizer",
-        role="Generate professional work summaries from task descriptions",
-        model=PhiGroq(id="deepseek-r1-distill-qwen-32b", api_key=groq_api_key),
-        instructions=[
-            f"You are a professional bot that generates structured work summaries for regular tasks.",
-            f"You receive tasks in plain text and format them according to these length guidelines:",
-            f"- Short: Keep each bullet point between 15-20 words. Focus on core actions only.",
-            f"- Normal: Keep each bullet point between 20-25 words. Include basic context and outcomes.",
-            f"- Long: Keep each bullet point between 35-40 words. Add moderate detail while staying focused.",
-            f"Format Example: {teams_format_example}",
-            f"DO NOT exceed the word limit for each length option.",
-            f"DO NOT include any notes or explanations. Only return the formatted summary.",
-            f"DO NOT copy from examples; only follow the structure."
+    response = completion.choices[0].message.content.strip().lower()
+    
+    # Default to 'jira' if unclear to ensure temporal elements are captured
+    if 'jira' in response:
+        return 'jira'
+    else:
+        # Double-check with a different prompt if LLM says teams
+        double_check_prompt = f"""
+        Analyze this text for temporal structure:
+        
+        {text}
+        
+        Look specifically for:
+        1. Past tense verbs (completed, tested, fixed, etc.)
+        2. Future references (will, plan to, tomorrow, etc.)
+        3. Issue/ticket references
+        
+        If it has ANY TWO of these elements, respond with 'jira'.
+        Otherwise, respond with 'teams'.
+        """
+        
+        second_check = client.chat.completions.create(
+            model="deepseek-r1-distill-qwen-32b",
+            messages=[{"role": "user", "content": double_check_prompt}],
+            temperature=0.1,
+            max_tokens=10
+        )
+        
+        second_response = second_check.choices[0].message.content.strip().lower()
+        if 'jira' in second_response:
+            return 'jira'
+        
+        return 'teams'
+
+def generate_work_summary(tasks, name, date, length_option, task_type, client):
+    """Generate work summary based on detected type"""
+    formatted_date = date.strftime('%d/%m/%Y')
+    
+    length_desc = {
+        "Short": "Keep each point brief (15-20 words per point).",
+        "Normal": "Include basic context (20-25 words per point).",
+        "Long": "Add moderate detail (35-40 words per point)."
+    }
+    
+    if task_type == "teams":
+        system_prompt = f"""
+        You are a professional work summary generator.
+        You have to carefully detect the data according to following guidelines
+        
+        Follow these guidelines:
+        - {length_desc[length_option]}
+        - Be professional and concise
+        - Focus on achievements and impact
+        - Use active voice and strong verbs
+        
+        DO NOT include any explanations or notes.
+        """
+    else:  # jira
+        system_prompt = f"""
+        You are a professional work update generator.
+        You have to carefully detect the data according to following guidelines
+        Guidelines:
+        - {length_desc[length_option]}
+        - Identify and categorize completed tasks, ongoing work, future tasks only
+        - Use past tense for completed tasks, present for ongoing, future tense for tomorrow
+        - If a category has no tasks, include it but write "None" as the content
+        - Explicity identify challenges or reported issue and display here only, if no found then write "None" as the content
+        DO NOT include any explanations or notes.
+        """
+    
+    user_prompt = f"""
+    Generate a professional work summary using the following input:
+    
+    {tasks}
+    
+    Name: {name}
+    Date: {formatted_date}
+    """
+    
+    completion = client.chat.completions.create(
+        model="deepseek-r1-distill-qwen-32b",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ],
-        markdown=True,
+        temperature=0.5,
+        max_tokens=1024
     )
     
-    # Jira Agent
-    jira_agent = Agent(
-        name="Jira Update Summarizer",
-        role="Generate professional work summaries in Jira format",
-        model=PhiGroq(id="deepseek-r1-distill-qwen-32b", api_key=groq_api_key),
-        instructions=[
-            f"You are a professional bot that generates structured work summaries in Jira format.",
-            f"You receive input in either structured or natural language format.",
-            f"Convert any natural language input into this exact structure:",
-            f"Work update: [date]",
-            f"1. Task Completed:",
-            f"   * Extract and format completed tasks from the input",
-            f"2. Ongoing task:",
-            f"   * Extract and format current/ongoing work",
-            f"3. Task for Tomorrow:",
-            f"   * Extract and format planned future tasks",
-            f"4. Challenges if any:",
-            f"   * Extract and format mentioned challenges/issues",
-            f"For natural language input:",
-            f"- Look for past tense verbs for completed tasks",
-            f"- Look for present continuous tense for ongoing tasks",
-            f"- Look for future tense or tomorrow mentions for upcoming tasks",
-            f"- Look for challenge/issue/problem mentions for challenges",
-            f"Follow these length guidelines:",
-            f"- Short: 15-20 words per description",
-            f"- Normal: 20-25 words per description",
-            f"- Long: 35-40 words per description",
-            f"Format Example: {jira_format_example}",
-            f"DO NOT deviate from this format.",
-            f"DO NOT include any notes or explanations."
+    return completion.choices[0].message.content.strip()
+
+def validate_format(summary, task_type, client):
+    """Validate and fix formatting issues"""
+    system_prompt = """
+    You validate and format work summaries. Fix any formatting issues but preserve content.
+    Return ONLY the properly formatted summary without any explanations.
+    """
+    
+    if task_type == "teams":
+        format_instruction = """
+        Ensure the summary follows this format:
+        ***Name: [name]***
+        
+        Work Summary of: [date] 
+        
+        ***Today's Work:***
+        
+        - Task 1
+        - Task 2
+        - Task 3
+        """
+    else:  # jira
+        format_instruction = """
+        Ensure the summary follows this format:
+        Work update: [date]
+        
+        1. Task Completed:
+           * Task details
+        
+        2. Ongoing task:
+           * Task details
+        
+        3. Task for Tomorrow:
+           * Task details
+        
+        4. Challenges if any:
+           * Details
+        """
+    
+    user_prompt = f"""
+    Validate and ensure proper formatting for this work summary:
+    
+    {summary}
+    
+    {format_instruction}
+    
+    Fix any formatting issues but preserve all content.
+    Return ONLY the properly formatted summary.
+    """
+    
+    completion = client.chat.completions.create(
+        model="deepseek-r1-distill-qwen-32b",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ],
-        markdown=True,
+        temperature=0.3,
+        max_tokens=1024
     )
     
-    # Formatter Agent
-    formatter_agent = Agent(
-        name="Update Formatter and Response Validator",
-        role="Format and validate work summaries",
-        model=PhiGroq(id="deepseek-r1-distill-qwen-32b", api_key=groq_api_key),
-        instructions=[
-            "You validate and format work summaries based on their type (teams or jira).",
-            "For teams format, use:",
-            "***Name: [name]***",
-            "Work Summary of: [date]",
-            "***Today's Work:***",
-            "- Task bullets...",
-            "For Jira format, use:",
-            "Work update: [date]",
-            "1. Task Completed:",
-            "   * Task details",
-            "2. Ongoing task:",
-            "   * Task details",
-            "3. Task for Tomorrow:",
-            "   * Task details",
-            "4. Challenges if any:",
-            "   * Details",
-            "Fix any formatting issues but preserve content.",
-            "Return ONLY the properly formatted summary."
-        ],
-        markdown=True,
-    )
-    
-    return tasks_agent, teams_agent, jira_agent, formatter_agent
+    return completion.choices[0].message.content.strip()
 
 # Streamlit UI
 st.title("UpdateBuddy AI")
@@ -229,17 +327,17 @@ st.markdown(
 # Sidebar for agent inspection
 with st.sidebar:
     st.header("Agent System")
-    st.info("UpdateBuddy now uses a multi-agent system to generate better summaries!")
-    show_agent_logs = st.checkbox("Show Agent Logs", value=False)
+    st.info("UpdateBuddy now uses a simplified, more accurate system to generate better summaries!")
+    show_agent_logs = st.checkbox("Show Process Logs", value=False)
     
-    if show_agent_logs:
-        st.subheader("Agent System:")
-        st.markdown("""
-        1. **Task Recognizer**: Analyzes your input format (Jira or Teams style)
-        2. **Teams Summarizer**: Handles regular task lists
-        3. **Jira Summarizer**: Processes structured/natural language Jira updates
-        4. **Formatter**: Ensures proper formatting and validates output
-        """)
+    # Add a format override option in sidebar
+    st.subheader("Format Controls")
+    override_format = st.checkbox("Override Automatic Format Detection", value=False)
+    
+    if override_format:
+        forced_format = st.radio("Select Format:", ["teams", "jira"], 
+                                format_func=lambda x: "Simple Task List (Teams)" if x == "teams" else "Structured Update (Jira)")
+        st.info("Format detection will be bypassed and your selected format will be used.")
 
 # Input fields
 name = st.text_input("Enter Your Name:", "Devansh Vora")
@@ -254,26 +352,10 @@ length_explanations = {
     "Long": "Add moderate detail while maintaining clarity (35-40 words per point)."
 }
 
-task_placeholder="E.g.\n- Mention your work summary here\n- Mention the lines you require as the result\n- Also specify the tone if you want",
-
-# # Updated placeholder showing both formats
-# task_placeholder = """Example 1 (Natural language):
-# Today, I completed the client presentation. Currently working on project proposals. Planning to start development tomorrow. Facing some delays with client feedback.
-
-# Example 2 (Structured):
-# 1. Task Completed:
-#    * Finished client presentation
-# 2. Ongoing task:
-#    * Working on proposals
-# 3. Task for Tomorrow:
-#    * Start development
-# 4. Challenges if any:
-#    * Client feedback delays"""
-
+# Task input
 tasks = st.text_area(
     "Enter Today's Tasks:",
-    placeholder="E.g.\n- Mention your work summary here\n- Mention the lines you require as the result\n- Also specify the tone if you want",
-    # placeholder=task_placeholder,
+    placeholder="Enter your work details. The system will detect whether to format as a simple task list or a structured update with completed/ongoing/future tasks.",
     height=150,
 )
 
@@ -283,213 +365,65 @@ if st.button("Generate Work Summary"):
         st.warning("Please enter at least one task to generate a summary.")
     else:
         try:
-            with st.spinner("Agents are working on your summary..."):
-                # Initialize agents
-                tasks_agent, teams_agent, jira_agent, formatter_agent = initialize_agents()
-                
-                formatted_date = date.strftime('%d/%m/%Y')
-                
+            with st.spinner("Generating your work summary..."):
                 # Create log container
                 log_container = st.container() if show_agent_logs else None
                 
-                # Step 1: Task Recognition
-                if show_agent_logs:
-                    with log_container:
-                        st.subheader("Step 1: Task Analysis")
-                        st.write("Analyzing your input...")
-                
-                task_recognition_prompt = """
-                Analyze the following input to determine if it follows a Jira update structure:
-
-                {input_text}
-
-                A Jira update MUST include at least 3 of these 4 components:
-                1. Completed/past tasks with clear completion indicators
-                2. Current/ongoing work with explicit "in progress" indicators
-                3. Future/planned tasks with clear tomorrow/next indicators
-                4. Specific challenges or issues being faced
-
-                Regular task lists that only contain completed items should be classified as 'teams'.
-
-                Example of Jira format:
-                "Today I completed the database migration. Currently working on API integration. Tomorrow, will implement user authentication. Facing issues with server deployment."
-
-                Example of Teams format (regular task list):
-                "Updated the database schema. Fixed UI alignment issues. Implemented new feature. Conducted code review."
-
-                Return ONLY a JSON with format: {{"type": "teams"|"jira", "content": "<original content>"}}
-                """
-                
-                # Update the system prompt for task recognition API call
-                task_recognition_system_prompt = """You are a task classifier that strictly distinguishes between Jira updates and regular task lists.
-
-                Jira updates MUST have:
-                - Clear temporal structure (past, present, future)
-                - Explicit ongoing or planned work
-                - Preferably mentions of challenges/issues
-
-                Regular task lists (teams) are:
-                - Lists of completed tasks
-                - Tasks without clear temporal structure
-                - Tasks without explicit ongoing/future work
-
-                Be strict in classification - if in doubt, classify as 'teams'."""
-
-                # Modify the task recognition API call section:
-                detection_completion = direct_client.chat.completions.create(
-                    model="deepseek-r1-distill-qwen-32b",
-                    messages=[
-                        {"role": "system", "content": task_recognition_system_prompt},
-                        {"role": "user", "content": task_recognition_prompt.format(input_text=tasks)}
-                    ],
-                    temperature=0.2,
-                    max_tokens=256
-                )
-                task_recognition_result = detection_completion.choices[0].message.content.strip()
-                
-                # Add an additional validation check after getting the API response
-                def validate_task_type(text, initial_classification):
-                    """Double-check the task classification with strict rules"""
-                    has_temporal_structure = contains_jira_pattern(text)  # Use our updated pattern matcher
+                # Step 1: Classify input type (unless overridden)
+                if override_format and 'forced_format' in locals():
+                    task_type = forced_format
+                    if show_agent_logs:
+                        with log_container:
+                            st.subheader("Step 1: Format Selection")
+                            st.warning(f"Automatic detection bypassed. Using forced format: {task_type.upper()}")
+                else:
+                    if show_agent_logs:
+                        with log_container:
+                            st.subheader("Step 1: Input Analysis")
+                            st.write("Analyzing your input format...")
                     
-                    # If it's just a list of completed tasks without temporal structure, force it to 'teams'
-                    if not has_temporal_structure and initial_classification['type'] == 'jira':
-                        return {"type": "teams", "content": text}
+                    task_type = classify_input_type(tasks)
                     
-                    return initial_classification
-
-                try:
-                    json_match = re.search(r'{.*}', task_recognition_result, re.DOTALL)
-                    if json_match:
-                        task_analysis = json.loads(json_match.group(0))
-                    else:
-                        # Use pattern matching function
-                        is_jira_pattern = contains_jira_pattern(tasks)
-                        task_analysis = {
-                            "type": "jira" if is_jira_pattern else "teams",
-                            "content": tasks
-                        }
-                except Exception as json_error:
-                    # Fallback to pattern matching
-                    is_jira_pattern = contains_jira_pattern(tasks)
-                    task_analysis = {
-                        "type": "jira" if is_jira_pattern else "teams",
-                        "content": tasks
-                    }
-                
-                if show_agent_logs:
-                    with log_container:
-                        st.write(f"Task type detected: {task_analysis['type']}")
-                        st.json(task_analysis)
+                    if show_agent_logs:
+                        with log_container:
+                            st.success(f"Input classified as: {task_type.upper()}")
+                            if task_type == "jira":
+                                st.write("Detected temporal structure (past/present/future tasks) or issue references")
+                            else:
+                                st.write("Detected simple task list without clear temporal structure")
                 
                 # Step 2: Generate Summary based on detected task type
                 if show_agent_logs:
                     with log_container:
-                        st.subheader(f"Step 2: Generating {task_analysis['type'].capitalize()} Summary")
+                        st.subheader(f"Step 2: Generating {task_type.capitalize()} Summary")
                 
-                if task_analysis["type"] == "teams":
-                    system_prompt = """You are a professional bot that generates structured work summaries for regular tasks.
-                    Format the tasks professionally, following the length guidelines provided.
-                    DO NOT exceed the word limit for each length option.
-                    DO NOT include any notes or explanations. Only return the formatted summary.
-                    DO NOT copy from examples; only follow the structure."""
-                else:  # jira
-                    system_prompt = """You are a professional bot that generates structured work summaries in Jira format.
-                    Convert input into this exact structure:
-                    Work update: [date]
-                    1. Task Completed:
-                       * Details
-                    2. Ongoing task:
-                       * Details
-                    3. Task for Tomorrow:
-                       * Details
-                    4. Challenges if any:
-                       * Details
-                    Extract and categorize tasks from natural language if needed.
-                    DO NOT deviate from this format.
-                    DO NOT include any notes or explanations."""
-                
-                user_prompt = f"""
-                Generate a professional work summary using the following input:
-                {tasks}
-                
-                Name: {name}
-                Date: {formatted_date}
-                
-                Content Length Preference: {length_option} ({length_explanations[length_option]})
-                """
-                
-                summary_completion = direct_client.chat.completions.create(
-                    model="deepseek-r1-distill-qwen-32b",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    temperature=0.5,
-                    max_tokens=1024
-                )
-                raw_summary = summary_completion.choices[0].message.content.strip()
+                raw_summary = generate_work_summary(tasks, name, date, length_option, task_type, client)
                 
                 if show_agent_logs:
                     with log_container:
+                        st.markdown("**Raw Generated Summary:**")
                         st.markdown(raw_summary)
-                        st.subheader("Step 3: Formatting and Validation")
+                        st.subheader("Step 3: Final Formatting")
                 
-                # Step 3: Format and Validate
-                validation_system_prompt = """You validate and format work summaries based on their type.
-                For teams format:
-                ***Name: [name]***
-                Work Summary of: [date]
-                ***Today's Work:***
-                - Task bullets...
-
-                For Jira format:
-                Work update: [date]
-                1. Task Completed:
-                   * Task details
-                2. Ongoing task:
-                   * Task details
-                3. Task for Tomorrow:
-                   * Task details
-                4. Challenges if any:
-                   * Details
-
-                Fix any formatting issues but preserve content.
-                Return ONLY the properly formatted summary."""
-                
-                validation_user_prompt = f"""
-                Validate and ensure proper formatting for this work summary:
-                
-                {raw_summary}
-
-                Type: {task_analysis['type']}
-                
-                Fix any formatting issues but preserve content.
-                Return ONLY the properly formatted summary.
-                """
-                
-                formatting_completion = direct_client.chat.completions.create(
-                    model="deepseek-r1-distill-qwen-32b",
-                    messages=[
-                        {"role": "system", "content": validation_system_prompt},
-                        {"role": "user", "content": validation_user_prompt}
-                    ],
-                    temperature=0.3,
-                    max_tokens=1024
-                )
-                final_output = formatting_completion.choices[0].message.content.strip()
+                # Step 3: Validate and format
+                final_output = validate_format(raw_summary, task_type, client)
                 
                 # Display the formatted output
                 st.markdown("### Generated Summary")
                 st.markdown(final_output, unsafe_allow_html=True)
                 
                 # Offer a downloadable version of the work summary
+                formatted_date = date.strftime('%d-%m-%Y')
                 st.download_button(
                     label="Download Summary",
                     data=final_output,
-                    file_name=f"Work_Summary_{formatted_date.replace('/', '-')}.txt",
+                    file_name=f"Work_Summary_{formatted_date}.txt",
                     mime="text/plain",
                 )
+                
+                # Show format type information
+                st.info(f"Summary generated in {task_type.upper()} format" + 
+                       (" (manually selected)" if override_format and 'forced_format' in locals() else " based on input analysis"))
                         
         except Exception as e:
             st.error(f"An error occurred while generating the summary: {e}")
