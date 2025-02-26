@@ -420,10 +420,6 @@ if st.button("Generate Work Summary"):
                     file_name=f"Work_Summary_{formatted_date}.txt",
                     mime="text/plain",
                 )
-                
-                # Show format type information
-                st.info(f"Summary generated in {task_type.upper()} format" + 
-                       (" (manually selected)" if override_format and 'forced_format' in locals() else " based on input analysis"))
                         
         except Exception as e:
             st.error(f"An error occurred while generating the summary: {e}")
